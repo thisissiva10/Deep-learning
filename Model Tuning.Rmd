@@ -1,0 +1,306 @@
+---
+title: "Machine Learning And AI A2"
+author: "SIVASHANKAR-19203161"
+date: "20/03/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## INTRODUCTION
+
+The given dataset lists the features of numbers from 0-9. The dataset is given by united states postal service. The task is to design a multilayer neural network (deep neural network) to classify the digits using the given dataset. 
+
+In the below chunk, the dataset is loaded and the seed is set to avoid fluctuation in the result. The dataset is split into 4. 2 input dataset and 2 output dataset. As the output dataset value ranges from 0-9, we are converting this value to a binary target. This could help the neural network to learn which unit has to be activated in the output layer. Also, we are making sure that the range of the given input dataset is from 0 to 1.
+
+```{r}
+library(keras)
+load("data_usps_digits.RData")
+set.seed(19203161)
+#one hot encoding for the test and the train dataset
+ytrain = to_categorical(y_train)
+ytest = to_categorical(y_test)
+
+# this could help to determine the number of units in the first layer.
+V <- ncol(x_train)
+
+#normalising function
+range_norm <- function(x, a = 0, b = 1) {
+  ( (x - min(x)) / (max(x) - min(x)) )*(b - a) + a }
+
+# normalising both the training and testing datasets 
+x <- apply(x_train, 2, range_norm)
+xt <-apply(x_test, 2, range_norm)
+
+
+```
+
+ 
+## Multilayer neural network with 2 Hidden Layers 
+
+We are considering the number of hidden units in the first layer to be 256 because the number of features given in the dataset is 256. In the next layer, we are considering half the number of units in the previous layer i.e 128. For the output layer, we are considering 10 units because the number of categories is 10. Relu is used as the activation function in the hidden layers and softmax function is used as the activation function in the output layer because the output is a multi categorical value. Stochastic gradient descent is used as the optimizer and categorical cross-entropy is used as an error function. The performance that is assessed is the accuracy. 
+
+```{r}
+model <- keras_model_sequential() %>%
+layer_dense(units = 256, activation = "relu", input_shape = V) %>%
+layer_dense(units = 128, activation = "relu") %>%
+layer_dense(units = ncol(ytrain), activation = "softmax") %>%
+compile(loss = "categorical_crossentropy", metrics = "accuracy",optimizer = optimizer_sgd())
+
+```
+
+
+We are choosing the batch size to be 1% of the total number of records in the training dataset. Here it is 73 hence, 73 samples are considered per gradient update. We are going for 100 epochs and passing the test set for validation purpose. The model is trained and the performance is visualized in the following chunk.
+
+
+```{r}
+N <- nrow(x_train)
+bs <- round(N * 0.01)
+fit <- model %>% fit(
+x = x, y = ytrain,
+validation_data = list(xt, ytest),
+epochs = 100,
+batch_size = bs,
+verbose = 0,
+)
+```
+
+A smooth line function is introduced to visualize the test and training error in a better way. The model returns the accuracy and we are calculating the error from it.
+
+```{r}
+smooth_line <- function(y) {
+x <- 1:length(y)
+out <- predict( loess(y ~ x) )
+return(out)
+}
+
+# check performance
+cols <- c("black", "dodgerblue3", "orange", "red")
+out <- 1 - cbind(fit$metrics$accuracy,
+                 fit$metrics$val_accuracy)
+matplot(out, pch = 19, ylab = "Error", xlab = "Epochs",
+        col = adjustcolor(cols[1:2], 0.3),
+        log = "y")
+matlines(apply(out, 2, smooth_line), lty = 1, col = cols[1:2], lwd = 2)
+legend("topright", legend = c("Training", "Test"),
+       fill = cols[1:2], bty = "n")
+
+
+```
+
+
+```{r}
+cat("Training error ",tail(1-fit$metrics$accuracy, 1))
+cat("\nTesting error  ",tail(1-fit$metrics$val_accuracy, 1))
+```
+
+
+The training error is around 0.01 and the test error is around 0.07. The training error is very less which can suggest either a good model or a sign of overfitting. 
+
+```{r}
+class_hat <- model %>% predict_classes(xt)
+
+table(y_test,class_hat)
+
+cat("\n","Classification rate for the given test set is ",tail(fit$metrics$val_accuracy, 1))
+```
+
+Here we can see the individual classification and misclassification rate. The off-diagonal values are very less compared to the diagonal values. The overall classification rate is around 93%. 
+
+## Multilayer Neural Network with 3 Hidden Layers
+For the extra hidden layer, the same principle is used (i.e halving the number of hidden units). Hence, the number of units is 64. The parameters remain the same. Generally increasing the number of hidden layers increases the performance but sometimes it reduces the performance if the number of hidden layers are more than the required. 
+ 
+
+```{r}
+
+model_3l <- keras_model_sequential() %>%
+layer_dense(units = 256, activation = "relu", input_shape = V) %>%
+layer_dense(units = 128, activation = "relu") %>%
+layer_dense(units = 64, activation = "relu") %>%
+layer_dense(units = ncol(ytrain), activation = "softmax") %>%
+compile(loss = "categorical_crossentropy", metrics = "accuracy",optimizer = optimizer_sgd())
+
+```
+
+
+
+```{r}
+fit_3l <- model_3l %>% fit(
+x = x, y = ytrain,
+validation_data = list(xt, ytest),
+epochs = 100,
+batch_size = bs,
+verbose = 0
+)
+
+```
+
+
+
+```{r}
+out <- 1 - cbind(fit_3l$metrics$accuracy,
+                 fit_3l$metrics$val_accuracy,
+                 fit$metrics$accuracy,
+                 fit$metrics$val_accuracy)
+matplot(out, pch = 19, ylab = "Error", xlab = "Epochs",
+col = adjustcolor(cols, 0.3),
+log = "y")
+
+matlines(apply(out, 2, smooth_line), lty = 1, col = cols, lwd = 2)
+legend("topright", legend = c("Training_3layer", "Test_3layer", "Train", "Test"),
+fill = cols, bty = "n")
+```
+
+
+```{r}
+cat("Training error ",tail(1-fit_3l$metrics$accuracy, 1))
+cat("\nTesting error  ",tail(1-fit_3l$metrics$val_accuracy, 1))
+
+```
+
+From the plot, we can infer that increasing the hidden layer has actually reduced the training error and test error. 
+
+
+```{r}
+class_hat <- model_3l %>% predict_classes(xt)
+
+table(y_test,class_hat)
+
+cat("\n","Classification rate for the given test set is ",tail(fit_3l$metrics$val_accuracy, 1))
+
+
+```
+
+The overall classification rate is around 93%.
+
+## Regularized model with 2 Hidden Layers
+
+Now let us try regularizing the model with 2 Hidden layers. If regularizing 2 hidden layers can give an increased accuracy, we can choose this model over the model with 3 hidden layers.
+ 
+Dropout method is used for regularisation. Early stopping is also included to avoid overfitting. 2 layers of dropout is introduced in between the hidden layers and the output layer. For this scenario, we opt rmsprop function for optimisation. This will enhance the adaptive learning rate.The remaining configuration is the same.
+
+```{r}
+model_reg <- keras_model_sequential() %>%
+layer_dense(units = 256, activation = "relu", input_shape = V) %>%
+layer_dropout(rate = 0.4) %>%
+layer_dense(units = 128, activation = "relu") %>%
+layer_dropout(rate = 0.3) %>%
+layer_dense(units = ncol(ytrain), activation = "softmax") %>%
+compile(loss = "categorical_crossentropy", metrics = "accuracy",optimizer = optimizer_rmsprop())
+```
+
+
+A new parameter callbacks is used. This parameter is set to a list of functions callback_early_stopping and callback_reduce_lr_on_plateau to achieve dropout and early stopping. Here patience parameter is set to 10. Hence the neural network will stop the training if there is no improvement after 10 epochs.
+
+
+```{r}
+fit_reg <- model_reg%>% fit(
+x = x, y = ytrain,
+validation_data = list(xt, ytest),
+epochs = 100,
+batch_size = bs,
+verbose = 0,
+callbacks = list(
+callback_early_stopping(monitor = "val_accuracy", patience = 10),
+callback_reduce_lr_on_plateau(monitor = "loss", patience = 10, factor = 0.1)
+)
+)
+```
+
+
+
+
+```{r}
+
+# check performance
+
+noofepochs = length(fit_reg$metrics$accuracy)
+
+out <- 1 - cbind(fit_reg$metrics$accuracy,
+                 fit_reg$metrics$val_accuracy,
+                 tail(fit$metrics$accuracy,noofepochs),
+                 tail(fit$metrics$val_accuracy,noofepochs))
+matplot(out, pch = 19, ylab = "Error", xlab = "Epochs",
+        col = adjustcolor(cols, 0.3),
+        log = "y")
+matlines(apply(out, 2, smooth_line), lty = 1, col = cols, lwd = 2)
+legend("topright", legend = c("Training_reg", "Test_reg", "Train", "Test"),
+fill = cols, bty = "n")
+
+
+```
+
+From the plot, we can infer that the regularised model has comparatively less training and test error.  
+
+
+```{r}
+
+class_hat <- model_reg %>% predict_classes(xt)
+table(y_test,class_hat)
+
+
+```
+
+```{r}
+cat("\n","Classification rate for the given test set is ",tail(fit_reg$metrics$val_accuracy, 1))
+
+```
+
+
+we can see an increase accuracy compared to the previous models. Now let us check the accuracy rate for the model with 3 Hidden layers with dropout regularisation.
+
+## Regularized model with 3 Hidden Layers
+```{r}
+
+model_reg_3 <- keras_model_sequential() %>%
+layer_dense(units = 256, activation = "relu", input_shape = V) %>%
+layer_dropout(rate = 0.4) %>%
+layer_dense(units = 128, activation = "relu") %>%
+layer_dropout(rate = 0.3) %>%
+layer_dense(units = 64, activation = "relu") %>%
+layer_dropout(rate = 0.3) %>%
+layer_dense(units = ncol(ytrain), activation = "softmax") %>%
+compile(loss = "categorical_crossentropy", metrics = "accuracy",optimizer = optimizer_rmsprop())
+
+fit_reg_3 <- model_reg_3%>% fit(
+x = x, y = ytrain,
+validation_data = list(xt, ytest),
+epochs = 100,
+batch_size = bs,
+verbose = 0,
+callbacks = list(
+callback_early_stopping(monitor = "val_accuracy", patience = 10),
+callback_reduce_lr_on_plateau(monitor = "loss", patience = 10, factor = 0.1)
+)
+)
+
+
+
+out <- 1 - cbind(fit_reg_3$metrics$accuracy,
+                 fit_reg_3$metrics$val_accuracy,
+                 tail(fit$metrics$accuracy,length(fit_reg_3$metrics$accuracy)),
+                 tail(fit$metrics$val_accuracy,length(fit_reg_3$metrics$accuracy)))
+matplot(out, pch = 19, ylab = "Error", xlab = "Epochs",
+        col = adjustcolor(cols, 0.3),
+        log = "y")
+matlines(apply(out, 2, smooth_line), lty = 1, col = cols, lwd = 2)
+legend("topright", legend = c("Training_reg", "Test_reg", "Train", "Test"),
+fill = cols, bty = "n")
+
+
+```
+
+
+
+
+```{r}
+cat("\n","Classification rate for the given test set is ",tail(fit_reg_3$metrics$val_accuracy, 1))
+
+```
+
+
+The overall classification rate is around 94%. We can see an increase in classification rate when the 2 hidden layers model is used and regularised. The 3 Hidden layers model has close enough accuracy but it is recommended to use the model with 2 hidden layers (with regularisation) because the training time and the errors are reduced. (In other words, prefering the simple model over a complex model). I have also tried the same rmsprop function as an optimizer for the 2 other models(without regularisation), the conclusion is the same. Prefer the regularised model with 2 hidden layers. As the learning rate has a huge influence over the dropout regularisation, and the value is not known explicitly for this task, using stochastic gradient descent might reduce the performance. Hence, I prefer to go with an adaptive learning rate optimizer for a better outcome.
+
