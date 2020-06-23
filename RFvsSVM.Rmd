@@ -1,0 +1,183 @@
+---
+title: "Statistical Machine Learning Assignment 3"
+author: "SIVASHANKAR-19203161"
+date: "11/04/2020"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+
+The dataset given is a collection of features describing an image. The images are classified into 6 types(cotton_crop, damp_grey_soil, grey_soil, red_soil, soil_with_vegetation_stubble, very_damp_grey_soil)
+
+The aim is to predict the classification of a satellite image, given the multi-spectral values.
+
+Also, we need to show which classification method works better (i.e multinomial logistic regression or random forests)
+
+the dataset is loaded and the classes are converted into factors to represent the categorical type.
+
+```{r}
+library(mlbench)
+library(randomForest)
+library(nnet)
+
+data("Satellite")
+# this will re-order alphabetically class labels and remove spacing
+Satellite$classes <- gsub(" ", "_", Satellite$classes)
+Satellite$classes <- factor( as.character(Satellite$classes) )
+# to have the same initial split
+set.seed(777222)
+D <- nrow(Satellite)
+
+```
+
+Now, a set of 100 iterations is performed. In each iteration, 5 iterations of randomforest classification and logistic regression are performed on a sampled dataset. The misclassification error for the cross validation set of both the models is noted.
+
+
+```{r,fig.width=10}
+
+B = 100
+
+K = 5
+
+overall = vector("list",length = B)
+
+
+
+for(i in 1:B){
+
+  keep = sample(1:D,5500)
+  cross_rows = setdiff(1:D, keep)
+
+  train = Satellite[keep,]
+  cross = Satellite[cross_rows,]
+
+  error = matrix(NA,nrow = K,ncol = 2)
+    
+for(k in 1:K){
+  
+ 
+  # random forest
+  rf = randomForest(classes~.,data = train,ntree = 10)
+  
+  class = predict(rf,cross,type = "class")
+  tab = table(class,cross$classes)
+  
+  
+  # test error of random forest
+  error[k,1] =  1 - (sum( diag(tab) ) / sum(tab))
+  
+  
+  
+  # logistic regression
+  model = multinom(classes~.,data = train,maxit=300,trace = FALSE)
+  
+  class = predict(model,cross,type = "class")
+  tab = table(class,cross$classes)
+  
+  
+  # test error of logistic regression
+  error[k,2] =  1 - (sum( diag(tab) ) / sum(tab))
+  
+}
+  
+  overall[[i]] = error
+  
+}
+
+
+
+
+```
+
+
+Here, 1 - average of 5 iterations in each iteration is taken. This gives the average classification rate for 100 iterations. Then the overall average is taken.
+
+```{r}
+
+avg <-1 - t(sapply(overall, colMeans) ) # 50 average values for both the models (accuracy)
+# column 1 represents random forest
+# column 2 represents multinomial logistic regression
+
+
+meanAcc <-colMeans(avg) 
+meanAcc
+```
+
+We can see that the classification rate for the random forest is better compared to the multinomial logistic regression.
+
+We will be proceeding with the variance of the classification rate to choose which is the best model for assessing the generalized error.
+
+
+
+```{r}
+
+sdAcc <- apply(avg, 2, sd)/sqrt(B) # estimated mean accuracy standard deviation
+sdAcc
+
+
+```
+
+
+we can see that both the models have low variance and almost similar, in that case, we can choose the random forest classification.
+
+we can visualize the accuracy rate on each iteration and the deviation occurred on each iteration for both the models
+
+```{r}
+matplot(avg, type = "l", lty = c(2,3), col = c("darkorange2", "deepskyblue3"),
+xlab = "Replications", ylab = "ACCURACY")
+
+##add confidence intervals
+
+bounds1 <- rep( c(meanAcc[1] - 2*sdAcc[1], meanAcc[1] + 2*sdAcc[1]), each = B )
+bounds2 <- rep( c(meanAcc[2] - 2*sdAcc[2], meanAcc[2] + 2*sdAcc[2]), each = B )
+polygon(c(1:B, B:1), bounds1, col = adjustcolor("darkorange2", 0.2), border = FALSE)
+polygon(c(1:B, B:1), bounds2, col = adjustcolor("deepskyblue3", 0.2), border = FALSE)
+##add estimated mean line
+
+abline(h = meanAcc, col = c("darkorange2", "deepskyblue3"))
+##add legend
+
+legend("bottomleft", fill = c("darkorange2", "deepskyblue3"),
+legend = c("random forest", "logistic"), bty = "n")
+```
+
+
+
+
+## Assessing the predictive performance
+
+As the accuracy rate and the standard deviation was low for the randomforest. Hence we proceed to calculate the predictive performance on random forest
+
+```{r}
+
+keep <- sample(1:D, 5500)
+test <- setdiff(1:D, keep)
+dat <- Satellite[keep,]
+dat_test <- Satellite[test,]
+
+
+final_model = randomForest(classes~.,data=dat,ntree = 10)
+
+class = predict(final_model,dat_test,type = "class")
+tab = table(class,dat_test$classes)
+
+accuracy = (sum( diag(tab) ) / sum(tab))
+
+accuracy
+
+1 - accuracy
+
+```
+
+The accuracy rate for the randomforest for the given dataset is 0.90
+
+The generalized error for the randomforest for the given set of data is 0.09 approximately.
+
+We can say that the classification rate is good
