@@ -1,4 +1,2 @@
 # Deep-learning
-Deep learning models
-This repository contains various deep learning models.
-Everything is scripted using R. The uploaded file is r markdown. 
+Deep learning models are codings are shared to show its performance over various dataset. Keras and Pytorch are used.
